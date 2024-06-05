@@ -172,12 +172,41 @@ void opencv_mat_resize(const opencv_mat src,
                        int height,
                        int interpolation)
 {
-    cv::resize(*static_cast<const cv::Mat*>(src),
-               *static_cast<cv::Mat*>(dst),
-               cv::Size(width, height),
-               0,
-               0,
-               interpolation);
+    auto src_mat = static_cast<const cv::Mat*>(src);
+    auto dst_mat = static_cast<cv::Mat*>(dst);
+
+    if (src_mat->channels() == 4)
+    {
+        // Split the source image into RGB and alpha channels
+        std::vector<cv::Mat> channels(4);
+        cv::split(*src_mat, channels);
+        cv::Mat rgb_src, alpha_src, rgb_dst, alpha_dst;
+
+        // Merge RGB channels into a single image
+        std::vector<cv::Mat> rgb_channels = { channels[0], channels[1], channels[2] };
+        cv::merge(rgb_channels, rgb_src);
+
+        // Get the alpha channel
+        alpha_src = channels[3];
+
+        // Resize RGB and alpha channels separately
+        cv::resize(rgb_src, rgb_dst, cv::Size(width, height), 0, 0, interpolation);
+        cv::resize(alpha_src, alpha_dst, cv::Size(width, height), 0, 0, interpolation);
+
+        // Merge resized RGB and alpha channels back together
+        std::vector<cv::Mat> resized_channels = { rgb_dst, alpha_dst };
+        cv::merge(resized_channels, *dst_mat);
+    }
+    else
+    {
+        // Resize directly if there is no alpha channel
+        cv::resize(*static_cast<const cv::Mat*>(src),
+                *static_cast<cv::Mat*>(dst),
+                cv::Size(width, height),
+                0,
+                0,
+                interpolation);
+    }
 }
 
 opencv_mat opencv_mat_crop(const opencv_mat src, int x, int y, int width, int height)

@@ -3,6 +3,7 @@ package lilliput
 import (
 	"bytes"
 	"io/ioutil"
+	"os"
 	"testing"
 )
 
@@ -286,5 +287,74 @@ func TestICC(t *testing.T) {
 			decoder.Close()
 			encoder.Close()
 		})
+	}
+}
+
+func TestOpenCV_Resize(t *testing.T) {
+	var (
+		testPNGImage, dstBuf, encodedData []byte
+		err                               error
+		decoder                           *openCVDecoder
+		framebuffer, outputFramebuffer    *Framebuffer
+		header                            *ImageHeader
+		options                           map[int]int
+		encoder                           *webpEncoder
+	)
+
+	// Load the test image
+	testPNGImage, err = os.ReadFile("testdata/icon-with-alpha-channel.png")
+	if err != nil {
+		t.Fatalf("Failed to read PNG image: %v", err)
+	}
+
+	// Initialize the decoder
+	decoder, err = newOpenCVDecoder(testPNGImage)
+	if err != nil {
+		t.Fatalf("Failed to create a new OpenCV decoder: %v", err)
+	}
+	defer decoder.Close()
+
+	// Get image header
+	header, err = decoder.Header()
+	if err != nil {
+		t.Fatalf("Failed to get the header: %v", err)
+	}
+
+	// Initialize the framebuffer
+	framebuffer = NewFramebuffer(header.width, header.height)
+	err = framebuffer.resizeMat(header.width, header.height, header.pixelType)
+	if err != nil {
+		t.Fatalf("Failed to resize the framebuffer mat: %v", err)
+	}
+
+	// Decode image to framebuffer
+	err = decoder.DecodeTo(framebuffer)
+	if err != nil {
+		t.Fatalf("Failed to decode image to framebuffer: %v", err)
+	}
+
+	// Initialize output framebuffer and resize
+	outputFramebuffer = NewFramebuffer(100, 100)
+	err = framebuffer.ResizeTo(100, 100, outputFramebuffer)
+	if err != nil {
+		t.Fatalf("Failed to resize the framebuffer: %v", err)
+	}
+
+	// Prepare destination buffer for encoding
+	dstBuf = make([]byte, destinationBufferSize)
+	encoder, err = newWebpEncoder(decoder, dstBuf)
+	if err != nil {
+		t.Fatalf("Failed to create a new WebP encoder: %v", err)
+	}
+	defer encoder.Close()
+
+	// Encode resized image
+	options = map[int]int{}
+	encodedData, err = encoder.Encode(outputFramebuffer, options)
+	if err != nil {
+		t.Fatalf("Encode failed unexpectedly: %v", err)
+	}
+	if len(encodedData) == 0 {
+		t.Fatalf("Encoded data is empty, but it should not be")
 	}
 }
