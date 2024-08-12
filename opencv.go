@@ -140,6 +140,10 @@ func (h *ImageHeader) IsAnimated() bool {
 	return h.numFrames > 1
 }
 
+func (h *ImageHeader) NumFrames() int {
+	return h.numFrames
+}
+
 // Some images have extra padding bytes at the end that aren't needed.
 // In the worst case, this might be unwanted data that the user intended
 // to crop (e.g. "acropalypse" bug).
