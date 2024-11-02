@@ -190,15 +190,32 @@ jobs:
         run: |
           git config --local user.email "github-actions[bot]@users.noreply.github.com"
           git config --local user.name "github-actions[bot]"
+          git config --local commit.gpgsign false
           
-          # Only force add the essential binary files and headers
-          git add -f \
-            deps/*/lib/*.so* \
-            deps/*/lib/*.dylib* \
-            deps/*/lib/*.a \
-            deps/*/include/**/*.h \
-            deps/*/build-info.json
+          # Stage each type of file explicitly
+          shopt -s nullglob # Handle case where globs don't match
           
+          # Binary files
+          for f in deps/*/lib/*.{so,so.*,dylib,dylib.*,a}; do
+            if [ -f "$f" ]; then
+              git add -f "$f"
+            fi
+          done
+          
+          # Header files
+          for f in deps/*/include/**/*.h; do
+            if [ -f "$f" ]; then
+              git add -f "$f"
+            fi
+          done
+          
+          # Build info
+          for f in deps/*/build-info.json; do
+            if [ -f "$f" ]; then
+              git add -f "$f"
+            fi
+          done
+
           # Only commit if there are changes
           if ! git diff --cached --quiet; then
             git commit -m "Update native dependencies from ${{ github.sha }} [skip ci]
