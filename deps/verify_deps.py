@@ -91,14 +91,15 @@ def verify_deps(deps_dir: Path, build_info: BuildInfo) -> Tuple[bool, List[str]]
 
 def main():
     parser = argparse.ArgumentParser(description="Verify Lilliput dependencies")
-    parser.add_argument("--deps-dir", required=True, type=Path,
-                      help="Directory containing dependencies (e.g., deps/linux or deps/osx)")
     
+    # Create subparsers first
     subparsers = parser.add_subparsers(dest="command", required=True)
     
     # Generate command
     generate_parser = subparsers.add_parser("generate",
                                           help="Generate build info for dependencies")
+    generate_parser.add_argument("--deps-dir", required=True, type=Path,
+                               help="Directory containing dependencies")
     generate_parser.add_argument("--platform", required=True,
                                choices=["linux", "macos"],
                                help="Platform identifier")
@@ -110,12 +111,14 @@ def main():
     # Verify command
     verify_parser = subparsers.add_parser("verify",
                                         help="Verify deps against build info")
+    verify_parser.add_argument("--deps-dir", required=True, type=Path,
+                             help="Directory containing dependencies")
     verify_parser.add_argument("--build-info", required=True, type=Path,
                              help="Path to build info JSON file")
     
     args = parser.parse_args()
     
-    if not args.deps_dir.exists():
+    if not os.path.exists(args.deps_dir):
         print(f"Error: deps directory not found: {args.deps_dir}", file=sys.stderr)
         sys.exit(1)
     
@@ -128,12 +131,9 @@ def main():
         
         output_file = args.output or args.deps_dir / "build-info.json"
         
-        # Convert BuildInfo to dict for JSON serialization
-        build_info_dict = build_info._asdict()
-        
         try:
             with open(output_file, "w") as f:
-                json.dump(build_info_dict, f, indent=4)
+                json.dump(build_info._asdict(), f, indent=4)
             print(f"Build info generated successfully: {output_file}")
         except (IOError, OSError) as e:
             print(f"Error writing build info: {e}", file=sys.stderr)
