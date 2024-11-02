@@ -187,7 +187,7 @@ jobs:
           tar xzf deps-linux.tar.gz
           tar xzf deps-macos.tar.gz
 
-- name: Commit updated deps
+      - name: Commit updated deps
         run: |
           git config --local user.email "github-actions[bot]@users.noreply.github.com"
           git config --local user.name "github-actions[bot]"
