@@ -1,7 +1,7 @@
-prefix=/Users/scottkidder/go/src/github.com/discord/lilliput/deps/osx
-exec_prefix=/Users/scottkidder/go/src/github.com/discord/lilliput/deps/osx
-libdir=/Users/scottkidder/go/src/github.com/discord/lilliput/deps/osx/lib
-includedir=/Users/scottkidder/go/src/github.com/discord/lilliput/deps/osx/include
+prefix=/Users/runner/work/lilliput/lilliput/deps/osx
+exec_prefix=/Users/runner/work/lilliput/lilliput/deps/osx
+libdir=/Users/runner/work/lilliput/lilliput/deps/osx/lib
+includedir=/Users/runner/work/lilliput/lilliput/deps/osx/include
 
 Name: libturbojpeg
 Description: A SIMD-accelerated JPEG codec that provides the TurboJPEG API
