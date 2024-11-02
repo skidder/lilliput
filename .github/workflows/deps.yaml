@@ -191,8 +191,13 @@ jobs:
           git config --local user.email "github-actions[bot]@users.noreply.github.com"
           git config --local user.name "github-actions[bot]"
           
-          # Force add the deps directories to override gitignore
-          git add -f deps/linux/* deps/osx/*
+          # Only force add the essential binary files and headers
+          git add -f \
+            deps/*/lib/*.so* \
+            deps/*/lib/*.dylib* \
+            deps/*/lib/*.a \
+            deps/*/include/**/*.h \
+            deps/*/build-info.json
           
           # Only commit if there are changes
           if ! git diff --cached --quiet; then
