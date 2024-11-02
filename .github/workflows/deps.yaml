@@ -26,7 +26,7 @@ jobs:
       - name: Install build tools
         run: |
           sudo apt-get update
-          sudo apt-get install nasm
+          sudo apt-get install nasm python3
 
       - name: Build deps
         run: |
@@ -48,14 +48,22 @@ jobs:
           go build
           go test -v
 
-      - name: Compress deps
-        run: tar -czf deps.tar.gz deps/linux
+      - name: Generate build info
+        run: |
+          ./verify_deps.py generate \
+            --deps-dir deps/linux \
+            --platform linux \
+            --commit ${{ github.sha }}
+
+      - name: Create deps archive
+        run: |
+          tar -czf deps-linux.tar.gz deps/linux/
 
       - name: Upload deps artifact
         uses: actions/upload-artifact@v4
         with:
           name: deps-linux.tar.gz
-          path: deps.tar.gz
+          path: deps-linux.tar.gz
 
   macos:
     name: macOS
@@ -70,6 +78,7 @@ jobs:
           brew install automake
           brew install coreutils # for ffmpeg build
           brew install libtool
+          python3 -m pip install --user --upgrade pip
 
       - name: Build deps
         run: |
@@ -90,12 +99,109 @@ jobs:
         run: |
           go build
           go test -v
-      
-      - name: Compress deps
-        run: tar -czf deps.tar.gz deps/osx
+
+      - name: Generate build info
+        run: |
+          ./verify_deps.py generate \
+            --deps-dir deps/osx \
+            --platform macos \
+            --commit ${{ github.sha }}
+
+      - name: Create deps archive
+        run: |
+          tar -czf deps-macos.tar.gz deps/osx/
 
       - name: Upload deps artifact
         uses: actions/upload-artifact@v4
         with:
           name: deps-macos.tar.gz
-          path: deps.tar.gz
+          path: deps-macos.tar.gz
+
+  verify:
+    name: Verify Build Artifacts
+    needs: [linux, macos]
+    runs-on: ubuntu-latest
+    # Only run verification on PRs to avoid duplicate runs on pushes to main
+    if: github.event_name == 'pull_request'
+    
+    steps:
+      - name: Check out repo
+        uses: actions/checkout@v4
+
+      - name: Download Linux artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: deps-linux.tar.gz
+          path: .
+
+      - name: Download macOS artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: deps-macos.tar.gz
+          path: .
+
+      - name: Extract artifacts
+        run: |
+          tar xzf deps-linux.tar.gz
+          tar xzf deps-macos.tar.gz
+
+      - name: Verify artifacts match checked-in deps
+        run: |
+          python3 ./verify_deps.py verify-artifact \
+            --artifact deps-linux.tar.gz \
+            --deps-dir deps/linux
+
+          python3 ./verify_deps.py verify-artifact \
+            --artifact deps-macos.tar.gz \
+            --deps-dir deps/osx
+
+  # This job updates the checked-in deps on main branch
+  update-deps:
+    name: Update Checked-in Dependencies
+    needs: [linux, macos]
+    runs-on: ubuntu-latest
+    # Only run on pushes to main, not on PRs
+    if: github.event_name == 'push' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master')
+    
+    steps:
+      - name: Check out repo
+        uses: actions/checkout@v4
+
+      - name: Download Linux artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: deps-linux.tar.gz
+          path: .
+
+      - name: Download macOS artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: deps-macos.tar.gz
+          path: .
+
+      - name: Extract and update deps
+        run: |
+          # Remove existing deps directories to avoid stale files
+          rm -rf deps/linux/* deps/osx/*
+
+          tar xzf deps-linux.tar.gz
+          tar xzf deps-macos.tar.gz
+
+- name: Commit updated deps
+        run: |
+          git config --local user.email "github-actions[bot]@users.noreply.github.com"
+          git config --local user.name "github-actions[bot]"
+          
+          # Force add the deps directories to override gitignore
+          git add -f deps/linux/* deps/osx/*
+          
+          # Only commit if there are changes
+          if ! git diff --cached --quiet; then
+            git commit -m "Update native dependencies from ${{ github.sha }} [skip ci]
+
+            Dependencies built by workflow run: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
+            
+            git push
+          else
+            echo "No changes to checked-in dependencies"
+          fi
