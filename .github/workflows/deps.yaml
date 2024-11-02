@@ -146,13 +146,13 @@ jobs:
 
       - name: Verify artifacts match checked-in deps
         run: |
-          python3 ./deps/verify_deps.py verify-artifact \
-            --artifact deps-linux.tar.gz \
-            --deps-dir deps/linux
+          python3 ./deps/verify_deps.py verify \
+            --deps-dir deps/linux \
+            --build-info deps/linux/build-info.json
 
-          python3 ./deps/verify_deps.py verify-artifact \
-            --artifact deps-macos.tar.gz \
-            --deps-dir deps/osx
+          python3 ./deps/verify_deps.py verify \
+            --deps-dir deps/osx \
+            --build-info deps/osx/build-info.json
 
   # This job updates the checked-in deps on main branch
   update-deps:
