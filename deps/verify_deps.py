@@ -31,8 +31,8 @@ def scan_deps(deps_dir: Path) -> Dict[str, str]:
         if not file_path.is_file():
             continue
             
-        # Only process shared and static libraries
-        if not file_path.suffix in ['.so', '.dylib', '.a']:
+        # Only process shared and static libraries and headers
+        if not file_path.suffix in ['.so', '.dylib', '.a', '.h']:
             continue
             
         # Get path relative to deps_dir
