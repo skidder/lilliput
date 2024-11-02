@@ -135,3 +135,5 @@ if [ -n "$CI" ]; then
   rm -rf "$SRCDIR"
   rm -rf "$BUILDDIR"
 fi
+
+echo "Done"
