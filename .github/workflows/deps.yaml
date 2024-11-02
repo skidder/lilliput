@@ -50,7 +50,7 @@ jobs:
 
       - name: Generate build info
         run: |
-          ./verify_deps.py generate \
+          ./deps/verify_deps.py generate \
             --deps-dir deps/linux \
             --platform linux \
             --commit ${{ github.sha }}
@@ -78,7 +78,6 @@ jobs:
           brew install automake
           brew install coreutils # for ffmpeg build
           brew install libtool
-          python3 -m pip install --user --upgrade pip
 
       - name: Build deps
         run: |
@@ -102,7 +101,7 @@ jobs:
 
       - name: Generate build info
         run: |
-          ./verify_deps.py generate \
+          ./deps/verify_deps.py generate \
             --deps-dir deps/osx \
             --platform macos \
             --commit ${{ github.sha }}
@@ -147,11 +146,11 @@ jobs:
 
       - name: Verify artifacts match checked-in deps
         run: |
-          python3 ./verify_deps.py verify-artifact \
+          python3 ./deps/verify_deps.py verify-artifact \
             --artifact deps-linux.tar.gz \
             --deps-dir deps/linux
 
-          python3 ./verify_deps.py verify-artifact \
+          python3 ./deps/verify_deps.py verify-artifact \
             --artifact deps-macos.tar.gz \
             --deps-dir deps/osx
 
