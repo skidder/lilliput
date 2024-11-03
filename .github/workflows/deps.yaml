@@ -23,14 +23,6 @@ jobs:
       - name: Check out repo
         uses: actions/checkout@v4
 
-      - name: Cache build tools
-        uses: actions/cache@v3
-        with:
-          path: |
-            /var/cache/apt
-            /var/lib/apt
-          key: ${{ runner.os }}-build-tools-${{ hashFiles('deps/build-deps-linux.sh') }}
-
       - name: Install build tools
         run: |
           sudo apt-get update
@@ -81,16 +73,6 @@ jobs:
     steps:
       - name: Check out repo
         uses: actions/checkout@v4
-
-      - name: Cache Homebrew packages
-        uses: actions/cache@v3
-        with:
-          path: |
-            ~/Library/Caches/Homebrew
-            ~/Library/Logs/Homebrew
-          key: ${{ runner.os }}-brew-${{ hashFiles('deps/build-deps-osx.sh') }}
-          restore-keys: |
-            ${{ runner.os }}-brew-
 
       - name: Install build tools
         run: |
