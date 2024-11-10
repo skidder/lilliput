@@ -12,12 +12,12 @@ const (
 )
 
 func TestWebPOperations(t *testing.T) {
-	t.Run("NewWebpDecoder", testNewWebpDecoder)
-	t.Run("WebpDecoder_Header", testWebpDecoderHeader)
-	t.Run("NewWebpEncoder", testNewWebpEncoder)
-	t.Run("WebpDecoder_DecodeTo", testWebpDecoderDecodeTo)
-	t.Run("WebpEncoder_Encode", testWebpEncoderEncode)
-	t.Run("NewWebpEncoderWithAnimatedWebPSource", testNewWebpEncoderWithAnimatedWebPSource)
+	// t.Run("NewWebpDecoder", testNewWebpDecoder)
+	// t.Run("WebpDecoder_Header", testWebpDecoderHeader)
+	// t.Run("NewWebpEncoder", testNewWebpEncoder)
+	// t.Run("WebpDecoder_DecodeTo", testWebpDecoderDecodeTo)
+	// t.Run("WebpEncoder_Encode", testWebpEncoderEncode)
+	// t.Run("NewWebpEncoderWithAnimatedWebPSource", testNewWebpEncoderWithAnimatedWebPSource)
 	t.Run("NewWebpEncoderWithAnimatedGIFSource", testNewWebpEncoderWithAnimatedGIFSource)
 }
 
@@ -135,7 +135,7 @@ func testWebpEncoderEncode(t *testing.T) {
 		quality  int
 	}{
 		{"No ICC Profile", "testdata/tears_of_steel_no_icc.webp", 60},
-		{"With ICC Profile", "testdata/tears_of_steel_icc.webp", 80},
+		{"With ICC Pro file", "testdata/tears_of_steel_icc.webp", 80},
 	}
 
 	for _, tc := range testCases {

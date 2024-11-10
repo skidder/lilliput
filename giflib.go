@@ -5,6 +5,7 @@ import "C"
 
 import (
 	"errors"
+	"fmt"
 	"io"
 	"sync/atomic"
 	"time"
@@ -119,6 +120,7 @@ func (d *gifDecoder) LoopCount() int {
 	if !d.loopCountRead {
 		d.loopCount = int(C.giflib_decoder_get_loop_count(d.decoder))
 		d.loopCountRead = true
+		fmt.Printf("loop count: %d\n", d.loopCount)
 	}
 	return d.loopCount
 }

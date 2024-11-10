@@ -3,6 +3,7 @@
 #include <stdbool.h>
 #include <opencv2/core.hpp>
 #include <opencv2/imgproc.hpp>
+#include <set>
 
 const int TRANSPARENCY_THRESHOLD = 128;
 
@@ -18,6 +19,7 @@ struct giflib_decoder_struct {
     int prev_frame_top;
     int prev_frame_width;
     int prev_frame_height;
+    int prev_frame_color_count;
     uint8_t bg_green;
     uint8_t bg_red;
     uint8_t bg_blue;
@@ -125,6 +127,11 @@ int giflib_decoder_get_frame_height(const giflib_decoder d)
 int giflib_decoder_get_prev_frame_delay(const giflib_decoder d)
 {
     return d->prev_frame_delay_time;
+}
+
+int giflib_decoder_get_prev_frame_color_count(const giflib_decoder d)
+{
+    return d->prev_frame_color_count;
 }
 
 void giflib_decoder_release(giflib_decoder d)
@@ -308,6 +315,21 @@ static bool giflib_decoder_render_frame(giflib_decoder d, GraphicsControlBlock* 
         return false;
     }
 
+    // Count unique colors used in this frame
+    bool colorUsed[256] = {false}; // Track which colors are used
+    int uniqueColors = 0;
+    
+    // Pre-scan the frame's pixels to count unique colors
+    for (int i = 0; i < desc.Width * desc.Height; i++) {
+        GifByteType paletteIndex = d->pixels[i];
+        if (!colorUsed[paletteIndex] && paletteIndex != transparency_index) {
+            colorUsed[paletteIndex] = true;
+            uniqueColors++;
+        }
+    }
+    
+    printf("unique colors in source frame: %d\n", uniqueColors);
+
     if (!d->have_read_first_frame) {
         // first frame -- draw the background
         for (size_t y = 0; y < buf_height; y++) {
@@ -322,6 +344,21 @@ static bool giflib_decoder_render_frame(giflib_decoder d, GraphicsControlBlock* 
     }
 
     if (d->have_read_first_frame) {
+        printf("Previous frame disposal method: %d ", d->prev_frame_disposal);
+        switch (d->prev_frame_disposal) {
+            case DISPOSE_DO_NOT:
+                printf("(DISPOSE_DO_NOT)\n");
+                break;
+            case DISPOSE_BACKGROUND:
+                printf("(DISPOSE_BACKGROUND)\n");
+                break;
+            case DISPOSE_PREVIOUS:
+                printf("(DISPOSE_PREVIOUS)\n");
+                break;
+            default:
+                printf("(UNKNOWN)\n");
+        }
+
         if (d->prev_frame_disposal == DISPOSE_BACKGROUND) {
             // draw over the previous frame with the BG color
             int prev_frame_left = d->prev_frame_left;
@@ -434,6 +471,25 @@ static bool giflib_decoder_render_frame(giflib_decoder d, GraphicsControlBlock* 
     // because we turn partial frames into full frames, we need to ensure that a transparency color
     // is defined, so that the encoder can use it (we convert partial frames to full frames with
     // a lot of transparency)
+
+    // Count unique colors in the rendered frame
+    std::set<uint32_t> uniqueRenderedColors;
+    for (int y = 0; y < buf_height; y++) {
+        const uint8_t* row = cvMat->data + y * cvMat->step;
+        for (int x = 0; x < buf_width; x++) {
+            // Skip fully transparent pixels
+            if (row[3] == 0) {
+                row += 4;
+                continue;
+            }
+            // Pack BGR values into a single integer for comparison
+            uint32_t color = (row[0] << 16) | (row[1] << 8) | row[2];
+            uniqueRenderedColors.insert(color);
+            row += 4;
+        }
+    }
+    
+    printf("unique colors in rendered frame: %d\n", uniqueRenderedColors.size());
 
     // let's check if we have a partial frame and whether no transparency is defined
     bool have_partial_frame = false;
@@ -564,12 +620,30 @@ bool giflib_decoder_decode_frame(giflib_decoder d, opencv_mat mat)
         return false;
     }
 
+
+    // Count unique colors used in this frame
+    bool colorUsed[256] = {false}; // Track which colors are used
+    int uniqueColors = 0;
+    
+    // Pre-scan the frame's pixels to count unique colors
+    auto cvMat = static_cast<const cv::Mat*>(mat);
+    for (int y = 0; y < cvMat->rows; y++) {
+        for (int x = 0; x < cvMat->cols; x++) {
+            uchar pixel = cvMat->at<uchar>(y, x);
+            if (!colorUsed[pixel]) {
+                colorUsed[pixel] = true;
+                uniqueColors++;
+            }
+        }
+    }
+    
     d->prev_frame_disposal = gcb.DisposalMode;
     d->prev_frame_delay_time = gcb.DelayTime;
     d->prev_frame_left = d->gif->Image.Left;
     d->prev_frame_top = d->gif->Image.Top;
     d->prev_frame_width = d->gif->Image.Width;
     d->prev_frame_height = d->gif->Image.Height;
+    d->prev_frame_color_count = uniqueColors;
     d->have_read_first_frame = true;
     d->seek_clear_extensions = true;
 
@@ -742,8 +816,8 @@ static inline int rgb_distance(int r0, int g0, int b0, int r1, int g1, int b1) {
 }
 
 static bool giflib_encoder_render_frame(giflib_encoder e,
-                                        const giflib_decoder d,
-                                        const opencv_mat opaque_frame)
+                                      const giflib_decoder d,
+                                      const opencv_mat opaque_frame)
 {
     GifFileType* gif_out = e->gif;
     auto frame = static_cast<const cv::Mat*>(opaque_frame);
@@ -834,24 +908,29 @@ static bool giflib_encoder_render_frame(giflib_encoder e,
     cv::Mat transparent_mask = alpha_mat < TRANSPARENCY_THRESHOLD;
     cv::Mat semi_transparent_mask = alpha_mat < 255 & alpha_mat >= TRANSPARENCY_THRESHOLD;
 
-    // Apply alpha blending to each channel
-    cv::Mat blended_mat;
-    bgr_mat.convertTo(blended_mat, CV_32F);
-    bg_color.convertTo(bg_color, CV_32F);
-
-    cv::Mat alpha_float;
-    alpha_mat.convertTo(alpha_float, CV_32F, 1.0/255.0);
-
-    for (int i = 0; i < 3; ++i) {
-        cv::Mat channel(frame_height, frame_width, CV_32F);
-        cv::extractChannel(blended_mat, channel, i);
-        channel = channel.mul(alpha_float) + bg_color.at<cv::Vec3f>(0)[i] * (1.0 - alpha_float);
-        cv::insertChannel(channel, blended_mat, i);
+    // Do alpha blending in integer space to avoid creating new colors
+    cv::Mat blended_mat = bgr_mat.clone();
+    
+    // For each pixel where alpha < 255, blend with background using integer math
+    for (int y = 0; y < frame_height; y++) {
+        for (int x = 0; x < frame_width; x++) {
+            uchar alpha = alpha_mat.at<uchar>(y, x);
+            if (alpha < 255 && alpha >= TRANSPARENCY_THRESHOLD) {
+                cv::Vec3b& pixel = blended_mat.at<cv::Vec3b>(y, x);
+                cv::Vec3b bg = bg_color.at<cv::Vec3b>(0, 0);
+                
+                // Integer alpha blending: (fg * alpha + bg * (255-alpha)) / 255
+                for (int c = 0; c < 3; c++) {
+                    pixel[c] = (pixel[c] * alpha + bg[c] * (255 - alpha)) / 255;
+                }
+            }
+        }
     }
 
-    blended_mat.convertTo(blended_mat, CV_8U);
+    // Set fully transparent pixels to background color
+    blended_mat.setTo(bg_color.at<cv::Vec3b>(0, 0), transparent_mask);
 
-    // Use a simple nearest-neighbor color quantization
+    // Use squared Euclidean distance for better color matching
     cv::Mat indices(frame_height, frame_width, CV_8UC1);
     for (int y = 0; y < frame_height; ++y) {
         for (int x = 0; x < frame_width; ++x) {
@@ -859,9 +938,10 @@ static bool giflib_encoder_render_frame(giflib_encoder e,
             int best_index = 0;
             int min_diff = INT_MAX;
             for (int i = 0; i < color_map->ColorCount; ++i) {
-                int diff = std::abs(pixel[0] - color_map->Colors[i].Blue) +
-                           std::abs(pixel[1] - color_map->Colors[i].Green) +
-                           std::abs(pixel[2] - color_map->Colors[i].Red);
+                int dr = pixel[2] - color_map->Colors[i].Red;    // BGR to RGB
+                int dg = pixel[1] - color_map->Colors[i].Green;
+                int db = pixel[0] - color_map->Colors[i].Blue;
+                int diff = (dr * dr) + (dg * dg) + (db * db);  // Squared Euclidean distance
                 if (diff < min_diff) {
                     min_diff = diff;
                     best_index = i;
@@ -929,17 +1009,24 @@ bool giflib_encoder_encode_frame(giflib_encoder e,
         return false;
     }
 
-    // Count actual colors used in this frame
+    GraphicsControlBlock gcb;
+    giflib_get_frame_gcb(e->gif, &gcb);
+    int transparency_index = gcb.TransparentColor;
+
+    // Count unique colors used in this frame
     bool colorUsed[256] = {false}; // Track which colors are used
     int uniqueColors = 0;
+    
+    // Pre-scan the frame's pixels to count unique colors
     for (int i = 0; i < frame_width * frame_height; i++) {
-        if (!colorUsed[e->pixels[i]]) {
-            colorUsed[e->pixels[i]] = true;
+        GifByteType paletteIndex = e->pixels[i];
+        if (!colorUsed[paletteIndex] && paletteIndex != transparency_index) {
+            colorUsed[paletteIndex] = true;
             uniqueColors++;
         }
     }
-
-    printf("unique colors: %d\n", uniqueColors);
+    
+    printf("unique colors in output frame: %d\n", uniqueColors);
 
     // Calculate minimum code size needed to represent uniqueColors
     // Add 2 to account for clear code and end code in LZW compression
