@@ -638,11 +638,11 @@ giflib_encoder giflib_encoder_create(void* buf, size_t buf_len)
     }
     e->gif = gif_out;
 
-    // set up palette lookup table. we need 2^15 entries because we will be
-    // using bit-crushed RGB values, 5 bits each. this is a reasonable compromise
+    // set up palette lookup table. we need 2^18 entries because we will be
+    // using bit-crushed RGB values, 6 bits each. this is a reasonable compromise
     // between fidelity and computation/storage
     e->palette_lookup =
-      (encoder_palette_lookup*)(malloc((1 << 15) * sizeof(encoder_palette_lookup)));
+      (encoder_palette_lookup*)(malloc((1 << 18) * sizeof(encoder_palette_lookup)));
 
     return e;
 }
@@ -733,16 +733,12 @@ static bool giflib_encoder_setup_frame(giflib_encoder e, const giflib_decoder d)
     return true;
 }
 
-// TODO this probably should be the euclidean distance
-// the manhattan distance will still be "good enough"
-// euclidean requires calculating pow(2) and sqrt()?
-static inline int rgb_distance(int r0, int g0, int b0, int r1, int g1, int b1)
-{
-    int dist = 0;
-    dist += (r0 > r1) ? r0 - r1 : r1 - r0;
-    dist += (g0 > g1) ? g0 - g1 : g1 - g0;
-    dist += (b0 > b1) ? b0 - b1 : b1 - b0;
-    return dist;
+// Replace the existing rgb_distance function with squared Euclidean distance
+static inline int rgb_distance(int r0, int g0, int b0, int r1, int g1, int b1) {
+    int dr = r0 - r1;
+    int dg = g0 - g1;
+    int db = b0 - b1;
+    return (dr * dr) + (dg * dg) + (db * db);
 }
 
 static bool giflib_encoder_render_frame(giflib_encoder e,
@@ -803,7 +799,7 @@ static bool giflib_encoder_render_frame(giflib_encoder e,
     }
 
     if (clear_palette_lookup) {
-        memset(e->palette_lookup, 0, (1 << 15) * sizeof(encoder_palette_lookup));
+        memset(e->palette_lookup, 0, (1 << 18) * sizeof(encoder_palette_lookup));
     }
 
     GraphicsControlBlock gcb;
@@ -933,13 +929,33 @@ bool giflib_encoder_encode_frame(giflib_encoder e,
         return false;
     }
 
+    // Count actual colors used in this frame
+    bool colorUsed[256] = {false}; // Track which colors are used
+    int uniqueColors = 0;
+    for (int i = 0; i < frame_width * frame_height; i++) {
+        if (!colorUsed[e->pixels[i]]) {
+            colorUsed[e->pixels[i]] = true;
+            uniqueColors++;
+        }
+    }
+
+    printf("unique colors: %d\n", uniqueColors);
+
+    // Calculate minimum code size needed to represent uniqueColors
+    // Add 2 to account for clear code and end code in LZW compression
+    int minCodeSize = 2;  // Minimum of 2 bits as per GIF spec
+    while ((1 << minCodeSize) < (uniqueColors + 2) && minCodeSize < 8) {
+        minCodeSize++;
+    }
+
     res = EGifPutImageDesc(e->gif,
                            im_out->Left,
                            im_out->Top,
                            im_out->Width,
                            im_out->Height,
                            im_out->Interlace,
-                           e->frame_color_map);
+                           e->frame_color_map,
+                           minCodeSize);
     if (res == GIF_ERROR) {
         return false;
     }

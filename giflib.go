@@ -37,7 +37,7 @@ var (
 )
 
 // SetGIFMaxFrameDimension sets the largest GIF width/height that can be
-// decoded
+// decodedasdfsdf
 func SetGIFMaxFrameDimension(dim uint64) {
 	// TODO we should investigate if this can be removed/become a mat check in decoder
 	atomic.StoreUint64(&gifMaxFrameDimension, dim)

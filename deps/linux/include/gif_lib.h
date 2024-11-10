@@ -50,6 +50,7 @@ typedef struct GifImageDesc {
     GifWord Left, Top, Width, Height;   /* Current image dimensions. */
     bool Interlace;                     /* Sequential/Interlaced lines. */
     ColorMapObject *ColorMap;           /* The local color map */
+    int MinCodeSize;                   /* Minimum LZW code size for this frame */
 } GifImageDesc;
 
 typedef struct ExtensionBlock {
@@ -155,7 +156,8 @@ int EGifPutImageDesc(GifFileType *GifFile,
 		     const int GifLeft, const int GifTop,
                      const int GifWidth, const int GifHeight, 
 		     const bool GifInterlace,
-                     const ColorMapObject *GifColorMap);
+                     const ColorMapObject *GifColorMap,
+                     const int GifMinCodeSize);
 void EGifSetGifVersion(GifFileType *GifFile, const bool gif89);
 int EGifPutLine(GifFileType *GifFile, GifPixelType *GifLine,
                 int GifLineLen);

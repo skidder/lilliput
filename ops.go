@@ -277,9 +277,9 @@ func (o *ImageOps) Transform(d Decoder, opt *ImageOptions, dst []byte) ([]byte, 
 	duration := time.Duration(0)
 	encodeTimeoutTime := time.Now().Add(opt.EncodeTimeout)
 
-	// transform the frames and encode them until we run out of frames or the timeout is reached
+	// transform the frames and encode them until we run out of frames or the timeout is reacheded
 	for {
-		// break out if we're creating a single frame and we've already done one
+		// break out if we're creating a single frame and we've already done one asdf
 		if opt.DisableAnimatedOutput && frameCount > 0 {
 			return o.encodeEmpty(enc, opt.EncodeOptions)
 		}

@@ -50,6 +50,7 @@ typedef struct GifImageDesc {
     GifWord Left, Top, Width, Height;   /* Current image dimensions. */
     bool Interlace;                     /* Sequential/Interlaced lines. */
     ColorMapObject *ColorMap;           /* The local color map */
+    int MinCodeSize;                   /* Minimum LZW code size for this frame */
 } GifImageDesc;
 
 typedef struct ExtensionBlock {
@@ -132,6 +133,7 @@ GifFileType *EGifOpen(void *userPtr, OutputFunc writeFunc, int *Error);
 int EGifSpew(GifFileType * GifFile);
 const char *EGifGetGifVersion(GifFileType *GifFile); /* new in 5.x */
 int EGifCloseFile(GifFileType *GifFile, int *ErrorCode);
+int EGifSetFrameMinCodeSize(GifFileType *GifFile, int MinCodeSize); /* new in 5.2.2 */
 
 #define E_GIF_SUCCEEDED          0
 #define E_GIF_ERR_OPEN_FAILED    1    /* And EGif possible errors. */
@@ -144,6 +146,8 @@ int EGifCloseFile(GifFileType *GifFile, int *ErrorCode);
 #define E_GIF_ERR_DISK_IS_FULL   8
 #define E_GIF_ERR_CLOSE_FAILED   9
 #define E_GIF_ERR_NOT_WRITEABLE  10
+#define E_GIF_ERR_BAD_CODE_SIZE  11   /* Invalid LZW code size */
+#define E_GIF_ERR_NO_IMAGES      12   /* No images to process */
 
 /* These are legacy.  You probably do not want to call them directly */
 int EGifPutScreenDesc(GifFileType *GifFile,
@@ -155,7 +159,8 @@ int EGifPutImageDesc(GifFileType *GifFile,
 		     const int GifLeft, const int GifTop,
                      const int GifWidth, const int GifHeight, 
 		     const bool GifInterlace,
-                     const ColorMapObject *GifColorMap);
+                     const ColorMapObject *GifColorMap,
+                     const int GifMinCodeSize);
 void EGifSetGifVersion(GifFileType *GifFile, const bool gif89);
 int EGifPutLine(GifFileType *GifFile, GifPixelType *GifLine,
                 int GifLineLen);
