@@ -424,6 +424,16 @@ func testNewWebpEncoderWithAnimatedGIFSource(t *testing.T) {
 			wantLoops:    2,
 		},
 		{
+			name:         "Witchy Witch",
+			inputPath:    "testdata/witch.gif",
+			outputPath:   "testdata/out/witch_out.gif",
+			width:        200,
+			height:       200,
+			quality:      80,
+			resizeMethod: ImageOpsResize,
+			wantLoops:    0,
+		},
+		{
 			name:         "Animated GIF with multiple extension blocks",
 			inputPath:    "testdata/dispose_bgnd.gif",
 			outputPath:   "testdata/out/dispose_bgnd.webp",
