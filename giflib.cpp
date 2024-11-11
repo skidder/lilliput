@@ -134,6 +134,11 @@ int giflib_decoder_get_prev_frame_disposal(const giflib_decoder d)
     }
 }
 
+uint32_t giflib_decoder_get_background_color(const giflib_decoder d)
+{
+    return d->background_color;
+}
+
 void giflib_decoder_release(giflib_decoder d)
 {
     if (d->pixels) {
@@ -1214,9 +1219,4 @@ cleanup:
     DGifCloseFile(gif, &error);
     delete loopReader;
     return info;
-}
-
-uint32_t giflib_decoder_get_background_color(const giflib_decoder d)
-{
-    return d->background_color;
 }
