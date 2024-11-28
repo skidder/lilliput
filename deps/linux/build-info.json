@@ -1,5 +1,5 @@
 {
-    "commit_sha": "62ae47a059e50f7c920df6c7c805d6347e9cb9e6",
+    "commit_sha": "79f53a1ffe8ea27ddb869fb8874b852df3898fa7",
     "platform": "linux",
     "files": {
         "include/gif_lib.h": "7c73854e2d7be4fc50e475c098cfcda5d704d5a10414db668c93c362d0c92db8",
@@ -219,9 +219,9 @@
         "include/libavutil/des.h": "aff467bd102466db2f73ba2fa9c652a02b7c80daa5d7906c8dfa2dee9448d469",
         "include/libavutil/twofish.h": "f6823a45af3a076bcf3f3f3361f1fa6b7aa0ee85a75ca0e8480b9b27b4532189",
         "include/libavutil/avconfig.h": "975611ad5eba15212d9e1d5fca9d4fdf0daec6d2269b2fcab8e29af8667164bc",
-        "lib/libturbojpeg.a": "444b562d4be697b2565ce63bfa1d5321fea4861092c4e0895bf98750c914a7b4",
+        "lib/libturbojpeg.a": "9bd6b7c56ad792332640d74a1c5433bb2074c1905a897547d2a68d6beeaf6460",
         "lib/libopencv_imgproc.a": "cbe4d0511d5a83b0d220b2c80884aa22d8dc72f1b6945ab74d53a0eac55ca8f0",
-        "lib/libjpeg.a": "e989c0c1661d908e5c868ffa7a7b9c30a582f6cd7c4a5fe657ad1e017cb313d2",
+        "lib/libjpeg.a": "15d1e484d6b06ca6703802f06a1097289ef754ce90fe660f96ac99d53c9a4266",
         "lib/libopencv_shape.a": "e09eb9726766a2bc8b05ec19bbd38712f4656ec592b1dcacc07df860c86a75a0",
         "lib/libopencv_video.a": "e7f2fb504e90b98afc0986856b69889ea476c36c11f7650d9e0d738964b8a9cd",
         "lib/libwebpmux.a": "a05954846b5a2a24f5ba5675450859d53a7944b2dd82d733b8c63e4f63bb7e54",
@@ -241,7 +241,7 @@
         "lib/libopencv_flann.a": "820493a23846f6e201dab06d5250b3f728e9d31518f99e0c99f0de0ca2bc486e",
         "lib/libswscale.a": "5f49418bae924873892a758cb3e01aafa3bf271e82a7a44d9f9003e7992cd0ad",
         "lib/libwebpdemux.a": "b449c90e7c9029e3ac0d4a75017ae9850aa6940da347608886f25f999ae9b882",
-        "lib/libopencv_core.a": "cec600442d95b64479fee7e32c5e0d78c672687554e3d553869462ffbc9c5889",
+        "lib/libopencv_core.a": "ee33100544aae7b4e65005510a30cf036634e4e2825541e8060259e42b407bf0",
         "lib/libpng16.a": "3df65dceb8e42990f443167b440de4946240678e3ad88d4c0dca1665ceead67c",
         "lib/libavcodec.a": "d592082dabdbfc6ce4343b8a58821063ddf618d4f3774e7438223f43a8f7598c",
         "lib/libswresample.a": "a24931d4cd8833d5dca689185d582471c3b222d1f0e4494f69e7a372881badb8",
