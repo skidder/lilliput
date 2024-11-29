@@ -118,11 +118,17 @@ func NewDecoder(buf []byte) (Decoder, error) {
 		return newWebpDecoder(buf)
 	}
 
-	maybeDecoder, err := newOpenCVDecoder(buf)
+	maybeOpenCVDecoder, err := newOpenCVDecoder(buf)
 	if err == nil {
-		return maybeDecoder, nil
+		return maybeOpenCVDecoder, nil
 	}
 
+	maybeAvifDecoder, err := newAvifDecoder(buf)
+	if err == nil {
+		return maybeAvifDecoder, nil
+	}
+
+	// Try AVCodec decoder as a fallback
 	return newAVCodecDecoder(buf)
 }
 
@@ -137,6 +143,10 @@ func NewEncoder(ext string, decodedBy Decoder, dst []byte) (Encoder, error) {
 
 	if strings.ToLower(ext) == ".webp" {
 		return newWebpEncoder(decodedBy, dst)
+	}
+
+	if strings.ToLower(ext) == ".avif" {
+		return newAvifEncoder(decodedBy, dst)
 	}
 
 	if strings.ToLower(ext) == ".mp4" || strings.ToLower(ext) == ".webm" {

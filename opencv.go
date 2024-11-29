@@ -1,6 +1,7 @@
 package lilliput
 
 // #include "opencv.hpp"
+// #include "avif.hpp"
 import "C"
 
 import (
@@ -33,11 +34,12 @@ const (
 type ImageOrientation int
 
 const (
-	JpegQuality    = int(C.CV_IMWRITE_JPEG_QUALITY)
-	PngCompression = int(C.CV_IMWRITE_PNG_COMPRESSION)
-	WebpQuality    = int(C.CV_IMWRITE_WEBP_QUALITY)
-
+	JpegQuality     = int(C.CV_IMWRITE_JPEG_QUALITY)
+	PngCompression  = int(C.CV_IMWRITE_PNG_COMPRESSION)
+	WebpQuality     = int(C.CV_IMWRITE_WEBP_QUALITY)
 	JpegProgressive = int(C.CV_IMWRITE_JPEG_PROGRESSIVE)
+	AvifQuality     = int(C.AVIF_QUALITY)
+	AvifSpeed       = int(C.AVIF_SPEED)
 
 	OrientationTopLeft     = ImageOrientation(C.CV_IMAGE_ORIENTATION_TL)
 	OrientationTopRight    = ImageOrientation(C.CV_IMAGE_ORIENTATION_TR)
