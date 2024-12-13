@@ -7,7 +7,7 @@ export PATH="/opt/homebrew/bin:$PATH"
 
 # Function to check and install build tools
 install_build_tools() {
-    for tool in automake libtool autoconf coreutils; do
+    for tool in automake libtool autoconf coreutils cmake; do
         if ! command -v $tool >/dev/null 2>&1; then
             echo "Installing $tool..."
             brew install $tool
@@ -280,7 +280,7 @@ cmake $BASEDIR/opencv \
     -DCMAKE_OSX_ARCHITECTURES=arm64 \
     -DCMAKE_OSX_DEPLOYMENT_TARGET=11.0 \
     -DCMAKE_C_FLAGS="-arch arm64 -I$PREFIX/include" \
-    -DCMAKE_CXX_FLAGS="-arch arm64 -I$PREFIX/include" \
+    -DCMAKE_CXX_FLAGS="-arch arm64 -I$PREFIX/include -isystem /Library/Developer/CommandLineTools/SDKs/MacOSX.sdk/usr/include/c++/v1"\
     -DWITH_JPEG=ON \
     -DJPEG_INCLUDE_DIR=$PREFIX/include \
     -DJPEG_LIBRARY=$PREFIX/lib/libjpeg.a \
@@ -368,7 +368,7 @@ cmake $BASEDIR/libyuv \
     -DCMAKE_OSX_ARCHITECTURES=arm64 \
     -DCMAKE_OSX_DEPLOYMENT_TARGET=14.0 \
     -DCMAKE_C_FLAGS="-arch arm64 -fPIC -O3 -march=armv8-a+crc+crypto -mtune=apple-m1" \
-    -DCMAKE_CXX_FLAGS="-arch arm64 -fPIC -O3 -march=armv8-a+crc+crypto -mtune=apple-m1" \
+    -DCMAKE_CXX_FLAGS="-arch arm64 -fPIC -O3 -march=armv8-a+crc+crypto -mtune=apple-m1 -std=c++11" \
     -DCMAKE_BUILD_TYPE=Release \
     -DBUILD_SHARED_LIBS=OFF \
     -DCMAKE_POSITION_INDEPENDENT_CODE=ON \
@@ -399,7 +399,7 @@ cmake $BASEDIR/aom \
     -DCMAKE_OSX_ARCHITECTURES=arm64 \
     -DCMAKE_OSX_DEPLOYMENT_TARGET=14.0 \
     -DCMAKE_C_FLAGS="-O3 -march=armv8-a+crc+crypto -mtune=apple-m1" \
-    -DCMAKE_CXX_FLAGS="-O3 -march=armv8-a+crc+crypto -mtune=apple-m1" \
+    -DCMAKE_CXX_FLAGS="-O3 -march=armv8-a+crc+crypto -mtune=apple-m1 -stdlib=libc++ -isystem /Library/Developer/CommandLineTools/SDKs/MacOSX.sdk/usr/include/c++/v1" \
     -DENABLE_SHARED=0 \
     -DENABLE_STATIC=1 \
     -DENABLE_TESTS=0 \

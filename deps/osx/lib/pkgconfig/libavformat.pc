@@ -1,7 +1,7 @@
-prefix=/Users/scottkidder/go/src/github.com/discord/lilliput/deps/osx
+prefix=/Users/scott/go/src/github.com/discord/lilliput/deps/osx
 exec_prefix=${prefix}
-libdir=/Users/scottkidder/go/src/github.com/discord/lilliput/deps/osx/lib
-includedir=/Users/scottkidder/go/src/github.com/discord/lilliput/deps/osx/include
+libdir=/Users/scott/go/src/github.com/discord/lilliput/deps/osx/lib
+includedir=/Users/scott/go/src/github.com/discord/lilliput/deps/osx/include
 
 Name: libavformat
 Description: FFmpeg container format library
