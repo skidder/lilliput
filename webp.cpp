@@ -382,6 +382,14 @@ webp_encoder webp_encoder_create(void* buf, size_t buf_len, const void* icc, siz
         e->icc = (const uint8_t*)(icc);
         e->icc_len = icc_len;
     }
+
+    WebPAnimEncoderOptions anim_config;
+    WebPAnimEncoderOptionsInit(&anim_config);
+    anim_config.minimize_size = 0;     // Disable size minimization
+    anim_config.kmin = 1;              // Minimum interval between key frames
+    anim_config.kmax = 30;             // Maximum interval between key frames
+    anim_config.allow_mixed = 1;       // Allow mixed compression methods
+
     return e;
 }
 
@@ -473,31 +481,70 @@ size_t webp_encoder_write(webp_encoder e, const opencv_mat src, const int* opt, 
         return 0;
     }
 
-    // webp will always allocate a region for the compressed image
-    // we will have to copy from it, then deallocate this region
-    size_t size = 0;
-    uint8_t* out_picture = nullptr;
+    // Setup ultra-fast encoding config
+    WebPConfig config;
+    WebPConfigInit(&config);
+    config.lossless = 0;             // Force lossy mode
+    config.quality = 60.0f;          // Much more aggressive quality reduction
+    config.method = 0;               // Fastest possible encoding method
+    config.thread_level = 1;         // Keep multithreading
+    config.pass = 1;                 // Single pass
+    config.preprocessing = 0;        // No preprocessing
+    config.segments = 1;            // Minimum segmentation
+    config.partition_limit = 0;     // No partition analysis
+    config.alpha_compression = 0;   // Fastest alpha
+    config.alpha_quality = 30;      // Very low alpha quality
+    config.use_sharp_yuv = 0;      // No sharp YUV
+    config.autofilter = 0;         // No autofilter
+    config.filter_strength = 0;    // No filtering
+    config.filter_sharpness = 0;   // No sharpness
+    config.filter_type = 0;        // Simplest filtering
+    config.show_compressed = 0;    // No stats
+    config.target_size = 0;       // No size targeting
+    config.target_PSNR = 0;       // No PSNR targeting
+    config.sns_strength = 0;      // No noise shaping
+    config.emulate_jpeg_size = 0; // No JPEG emulation
+    config.image_hint = WEBP_HINT_DEFAULT;  // Optimize for speed over quality
+    config.low_memory = 1;        // Use less memory during encoding
 
-    if (quality > 100.0f) {
-        if (mat->channels() == 3) {
-            size = WebPEncodeLosslessBGR(mat->data, mat->cols, mat->rows, mat->step, &out_picture);
-        } else {
-            size = WebPEncodeLosslessBGRA(mat->data, mat->cols, mat->rows, mat->step, &out_picture);
+    // Setup picture data with aggressive settings
+    WebPPicture pic;
+    WebPPictureInit(&pic);
+    pic.width = mat->cols;
+    pic.height = mat->rows;
+    pic.use_argb = 0;              // Use YUVA instead of ARGB
+    pic.colorspace = WEBP_YUV420;  // Use 4:2:0 chroma subsampling
+
+    // Import image data
+    if (mat->channels() == 3) {
+        if (!WebPPictureImportBGR(&pic, mat->data, mat->step)) {
+            WebPPictureFree(&pic);
+            return 0;
         }
     } else {
-        if (mat->channels() == 3) {
-            size = WebPEncodeBGR(mat->data, mat->cols, mat->rows, mat->step, quality, &out_picture);
-        } else {
-            size = WebPEncodeBGRA(mat->data, mat->cols, mat->rows, mat->step, quality, &out_picture);
+        if (!WebPPictureImportBGRA(&pic, mat->data, mat->step)) {
+            WebPPictureFree(&pic);
+            return 0;
         }
     }
 
-    if (size == 0) {
-        // Failed to encode image
+    // Setup memory writer
+    WebPMemoryWriter memory_writer;
+    WebPMemoryWriterInit(&memory_writer);
+    pic.writer = WebPMemoryWrite;
+    pic.custom_ptr = &memory_writer;
+
+    // Encode
+    if (!WebPEncode(&config, &pic)) {
+        WebPPictureFree(&pic);
+        WebPMemoryWriterClear(&memory_writer);
         return 0;
     }
 
-    WebPData picture = { out_picture, size };
+    // Get encoded data
+    WebPData picture = { memory_writer.mem, memory_writer.size };
+    size_t size = memory_writer.size;
+
     if (e->frame_count == 1) {
         // First frame handling
         e->first_frame_delay = delay;
@@ -514,8 +561,8 @@ size_t webp_encoder_write(webp_encoder e, const opencv_mat src, const int* opt, 
 
         WebPMuxError mux_error = WebPMuxSetImage(e->mux, &picture, 1);
         if (mux_error != WEBP_MUX_OK) {
-            if (out_picture) {
-                WebPFree(out_picture);
+            if (memory_writer.mem) {
+                WebPFree(memory_writer.mem);
             }
             return 0;
         }
@@ -528,8 +575,8 @@ size_t webp_encoder_write(webp_encoder e, const opencv_mat src, const int* opt, 
             memset(&first_frame, 0, sizeof(WebPMuxFrameInfo));
             WebPMuxError get_frame_error = WebPMuxGetFrame(e->mux, 1, &first_frame);
             if (get_frame_error != WEBP_MUX_OK) {
-                if (out_picture) {
-                    WebPFree(out_picture);
+                if (memory_writer.mem) {
+                    WebPFree(memory_writer.mem);
                 }
                 return 0;
             }
@@ -543,8 +590,8 @@ size_t webp_encoder_write(webp_encoder e, const opencv_mat src, const int* opt, 
                 WebPData icc_data = { e->icc, e->icc_len };
                 WebPMuxError mux_error = WebPMuxSetChunk(e->mux, "ICCP", &icc_data, 1);
                 if (mux_error != WEBP_MUX_OK) {
-                    if (out_picture) {
-                        WebPFree(out_picture);
+                    if (memory_writer.mem) {
+                        WebPFree(memory_writer.mem);
                     }
                     return 0;
                 }
@@ -557,8 +604,8 @@ size_t webp_encoder_write(webp_encoder e, const opencv_mat src, const int* opt, 
 
             WebPMuxError anim_params_error = WebPMuxSetAnimationParams(e->mux, &anim_params);
             if (anim_params_error != WEBP_MUX_OK) {
-                if (out_picture) {
-                    WebPFree(out_picture);
+                if (memory_writer.mem) {
+                    WebPFree(memory_writer.mem);
                 }
                 return 0;
             }
@@ -572,8 +619,8 @@ size_t webp_encoder_write(webp_encoder e, const opencv_mat src, const int* opt, 
             first_frame.blend_method = (WebPMuxAnimBlend)e->first_frame_blend;
             WebPMuxError push_frame_error = WebPMuxPushFrame(e->mux, &first_frame, 1);
             if (push_frame_error != WEBP_MUX_OK) {
-                if (out_picture) {
-                    WebPFree(out_picture);
+                if (memory_writer.mem) {
+                    WebPFree(memory_writer.mem);
                 }
                 return 0;
             }
@@ -594,8 +641,8 @@ size_t webp_encoder_write(webp_encoder e, const opencv_mat src, const int* opt, 
         // Add the frame to the mux object
         WebPMuxError push_frame_error = WebPMuxPushFrame(e->mux, &frame, 1);
         if (push_frame_error != WEBP_MUX_OK) {
-            if (out_picture) {
-                WebPFree(out_picture);
+            if (memory_writer.mem) {
+                WebPFree(memory_writer.mem);
             }
             return 0;
         }
@@ -603,8 +650,8 @@ size_t webp_encoder_write(webp_encoder e, const opencv_mat src, const int* opt, 
 
     e->frame_count++;
 
-    if (out_picture) {
-        WebPFree(out_picture);
+    if (memory_writer.mem) {
+        WebPFree(memory_writer.mem);
     }
     return size;
 }
