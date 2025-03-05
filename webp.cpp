@@ -483,29 +483,11 @@ size_t webp_encoder_write(webp_encoder e, const opencv_mat src, const int* opt, 
 
     // Setup ultra-fast encoding config
     WebPConfig config;
-    WebPConfigInit(&config);
-    config.lossless = 0;             // Force lossy mode
-    config.quality = 60.0f;          // Much more aggressive quality reduction
-    config.method = 0;               // Fastest possible encoding method
-    config.thread_level = 1;         // Keep multithreading
-    config.pass = 1;                 // Single pass
-    config.preprocessing = 0;        // No preprocessing
-    config.segments = 1;            // Minimum segmentation
-    config.partition_limit = 0;     // No partition analysis
-    config.alpha_compression = 0;   // Fastest alpha
-    config.alpha_quality = 30;      // Very low alpha quality
-    config.use_sharp_yuv = 0;      // No sharp YUV
-    config.autofilter = 0;         // No autofilter
-    config.filter_strength = 0;    // No filtering
-    config.filter_sharpness = 0;   // No sharpness
-    config.filter_type = 0;        // Simplest filtering
-    config.show_compressed = 0;    // No stats
-    config.target_size = 0;       // No size targeting
-    config.target_PSNR = 0;       // No PSNR targeting
-    config.sns_strength = 0;      // No noise shaping
-    config.emulate_jpeg_size = 0; // No JPEG emulation
-    config.image_hint = WEBP_HINT_DEFAULT;  // Optimize for speed over quality
-    config.low_memory = 1;        // Use less memory during encoding
+    WebPConfigPreset(&config, WEBP_PRESET_DEFAULT, quality);
+    // config.near_lossless = 60;
+    config.use_delta_palette = 1;
+    config.exact = 0;
+    // config.segments = 3;    
 
     // Setup picture data with aggressive settings
     WebPPicture pic;

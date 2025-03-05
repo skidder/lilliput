@@ -531,3 +531,51 @@ func testNewWebpEncoderWithAnimatedGIFSource(t *testing.T) {
 		})
 	}
 }
+
+// Benchmark for GIF to WebP conversion
+func BenchmarkGifToWebp(b *testing.B) {
+	for i := 0; i < b.N; i++ {
+		// read the input GIF file
+		testGIFImage, err := os.ReadFile("testdata/party-discord.gif")
+		if err != nil {
+			b.Errorf("Unexpected error while reading %s: %v", "testdata/party-discord.gif", err)
+			return
+		}
+
+		// decode the GIF image
+		decoder, err := newGifDecoder(testGIFImage)
+		if err != nil {
+			b.Errorf("Unexpected error while decoding %s: %v", "testdata/party-discord.gif", err)
+			return
+		}
+
+		// create destination buffer and encode the GIF image to WebP
+		dstBuf := make([]byte, destinationBufferSize)
+		encoder, err := newWebpEncoder(decoder, dstBuf)
+		if err != nil {
+			b.Errorf("Unexpected error while encoding %s: %v", "testdata/party-discord.gif", err)
+			return
+		}
+		// encode the GIF image to WebP
+		header, err := decoder.Header()
+		if err != nil {
+			b.Errorf("Failed to get header: %v", err)
+			return
+		}
+		framebuffer := NewFramebuffer(header.width, header.height)
+		if err = framebuffer.resizeMat(header.width, header.height, header.pixelType); err != nil {
+			b.Errorf("Failed to resize framebuffer: %v", err)
+			return
+		}
+		if _, err = encoder.Encode(framebuffer, map[int]int{WebpQuality: 80}); err != nil {
+			b.Errorf("Unexpected error while encoding %s: %v", "testdata/party-discord.gif", err)
+			return
+		}
+
+		// close the encoder
+		encoder.Close()
+
+		// close the decoder
+		decoder.Close()
+	}
+}
