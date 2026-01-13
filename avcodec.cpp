@@ -613,7 +613,9 @@ void avcodec_decoder_release(avcodec_decoder d)
 
     if (d->avio) {
         avio_flush(d->avio);
-        av_free(d->avio->buffer);
+        if (d->avio->buffer) {
+            av_free(d->avio->buffer);
+        }
         av_free(d->avio);
     }
 

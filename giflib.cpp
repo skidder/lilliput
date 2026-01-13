@@ -521,6 +521,12 @@ static bool giflib_decoder_render_frame(giflib_decoder d, GraphicsControlBlock* 
                 dst += 4;
                 continue;
             }
+            // Bounds check: ensure palette_index is within valid range
+            if (palette_index >= colorMap->ColorCount) {
+                // Treat out-of-bounds palette index as transparent/skip pixel
+                dst += 4;
+                continue;
+            }
             *dst++ = colorMap->Colors[palette_index].Blue;
             *dst++ = colorMap->Colors[palette_index].Green;
             *dst++ = colorMap->Colors[palette_index].Red;
@@ -622,7 +628,7 @@ static void extract_background_color(GifFileType* gif,
 
 // decode the full frame and write it into mat
 // decode_frame_header *must* be called before this function
-bool giflib_decoder_decode_frame(giflib_decoder d, opencv_mat mat)
+bool giflib_decoder_decode_frame(giflib_decoder d, opencv_mat mat, int max_dimension)
 {
     GifImageDesc desc = d->gif->Image;
 
@@ -641,9 +647,13 @@ bool giflib_decoder_decode_frame(giflib_decoder d, opencv_mat mat)
         return false;
     }
 
-    // since we aren't actually writing into mat, we don't check for large
-    // dimensions here. it is up to the caller to do that after reading the
-    // header
+    // Check against the configurable maximum dimension limit
+    // This check is performed atomically with decode to prevent TOCTOU race conditions
+    if (max_dimension > 0 && (desc.Width > max_dimension || desc.Height > max_dimension)) {
+        fprintf(stderr, "encountered error, gif frame dimensions (%d x %d) exceed max dimension (%d)\n",
+                desc.Width, desc.Height, max_dimension);
+        return false;
+    }
 
     size_t image_size = desc.Width * desc.Height;
 
@@ -833,6 +843,65 @@ bool giflib_encoder_init(giflib_encoder e, const giflib_decoder d, int width, in
     return true;
 }
 
+// Helper function to validate and copy extension blocks from decoder to encoder.
+// Returns true on success, false if validation fails.
+// This function safely handles NULL decoder state and validates all extension block data.
+static bool giflib_encoder_copy_extension_blocks(giflib_encoder e, const giflib_decoder d)
+{
+    // Validate decoder state before accessing extension blocks
+    if (d == NULL || d->gif == NULL) {
+        e->gif->ExtensionBlockCount = 0;
+        e->gif->ExtensionBlocks = NULL;
+        return true;  // Not an error - just no blocks to copy
+    }
+
+    e->gif->ExtensionBlockCount = d->gif->ExtensionBlockCount;
+    e->gif->ExtensionBlocks = NULL;
+
+    if (e->gif->ExtensionBlockCount <= 0) {
+        return true;  // No blocks to copy
+    }
+
+    // Validate that extension blocks array exists
+    if (d->gif->ExtensionBlocks == NULL) {
+        e->gif->ExtensionBlockCount = 0;
+        return false;
+    }
+
+    // Allocate extension blocks for the encoder
+    // TODO: we should filter out worthless blocks - we're only really interested in
+    // ExtensionBlock.Function = GRAPHICS_EXT_FUNC_CODE. Other values like COMMENT_
+    // and PLAINTEXT_ are not essential to viewing the image.
+    e->gif->ExtensionBlocks =
+      giflib_encoder_allocate_extension_blocks(e, e->gif->ExtensionBlockCount);
+
+    for (int i = 0; i < e->gif->ExtensionBlockCount; i++) {
+        ExtensionBlock* eb_in = &(d->gif->ExtensionBlocks[i]);
+        ExtensionBlock* eb_out = &(e->gif->ExtensionBlocks[i]);
+
+        // Validate ByteCount is reasonable (GIF extension blocks max 255 bytes per sub-block,
+        // but multiple sub-blocks can be concatenated, so allow up to 64KB as safety limit)
+        int byte_count = eb_in->ByteCount;
+        if (byte_count < 0 || byte_count > 65535) {
+            e->gif->ExtensionBlockCount = i;  // Only use blocks up to this point
+            return false;
+        }
+
+        // Validate that Bytes pointer exists if ByteCount > 0
+        if (byte_count > 0 && eb_in->Bytes == NULL) {
+            e->gif->ExtensionBlockCount = i;
+            return false;
+        }
+
+        eb_out->ByteCount = byte_count;
+        eb_out->Function = eb_in->Function;
+        eb_out->Bytes = giflib_encoder_allocate_gif_bytes(e, eb_out->ByteCount);
+        memmove(eb_out->Bytes, eb_in->Bytes, eb_out->ByteCount);
+    }
+
+    return true;
+}
+
 static bool giflib_encoder_setup_frame(giflib_encoder e, const giflib_decoder d)
 {
     // initialize frame with input gif's frame metadata
@@ -860,22 +929,8 @@ static bool giflib_encoder_setup_frame(giflib_encoder e, const giflib_decoder d)
 
     // copy extension blocks specific to this frame
     // this sets up the frame delay as well as which palette entry is transparent, if any
-    e->gif->ExtensionBlockCount = d->gif->ExtensionBlockCount;
-    e->gif->ExtensionBlocks = NULL;
-    if (e->gif->ExtensionBlockCount > 0) {
-        // TODO here and in global extension blocks, we should filter out worthless blocks
-        // we're only really interested in ExtensionBlock.Function = GRAPHICS_EXT_FUNC_CODE
-        // other values like COMMENT_ and PLAINTEXT_ are not essential to viewing the image
-        e->gif->ExtensionBlocks =
-          giflib_encoder_allocate_extension_blocks(e, e->gif->ExtensionBlockCount);
-        for (int i = 0; i < e->gif->ExtensionBlockCount; i++) {
-            ExtensionBlock* eb_in = &(d->gif->ExtensionBlocks[i]);
-            ExtensionBlock* eb_out = &(e->gif->ExtensionBlocks[i]);
-            eb_out->ByteCount = eb_in->ByteCount;
-            eb_out->Function = eb_in->Function;
-            eb_out->Bytes = giflib_encoder_allocate_gif_bytes(e, eb_out->ByteCount);
-            memmove(eb_out->Bytes, eb_in->Bytes, eb_out->ByteCount);
-        }
+    if (!giflib_encoder_copy_extension_blocks(e, d)) {
+        return false;
     }
 
     // Fix GCB disposal mode for DISPOSAL_UNSPECIFIED
@@ -1178,18 +1233,8 @@ bool giflib_encoder_flush(giflib_encoder e, const giflib_decoder d)
 
     // set up "trailing" extension blocks, which appear after all the frames
     // brian note: what do these do? do we actually need them?
-    e->gif->ExtensionBlockCount = d->gif->ExtensionBlockCount;
-    e->gif->ExtensionBlocks = NULL;
-    if (e->gif->ExtensionBlockCount > 0) {
-        e->gif->ExtensionBlocks =
-          giflib_encoder_allocate_extension_blocks(e, e->gif->ExtensionBlockCount);
-        for (int i = 0; i < e->gif->ExtensionBlockCount; i++) {
-            ExtensionBlock* eb = &(e->gif->ExtensionBlocks[i]);
-            eb->ByteCount = d->gif->ExtensionBlocks[i].ByteCount;
-            eb->Function = d->gif->ExtensionBlocks[i].Function;
-            eb->Bytes = giflib_encoder_allocate_gif_bytes(e, eb->ByteCount);
-            memmove(eb->Bytes, d->gif->ExtensionBlocks[i].Bytes, eb->ByteCount);
-        }
+    if (!giflib_encoder_copy_extension_blocks(e, d)) {
+        return false;
     }
 
     int res = giflib_encoder_write_extensions(e);

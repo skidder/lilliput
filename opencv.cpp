@@ -314,7 +314,16 @@ int opencv_decoder_get_png_icc(void* src, size_t src_len, void* dest, size_t des
     std::pair<const char**, size_t*> buffer_info(&buffer, &buffer_size);
 
     png_structp png_ptr = png_create_read_struct(PNG_LIBPNG_VER_STRING, nullptr, nullptr, nullptr);
+    if (!png_ptr) {
+        return 0;
+    }
+
     png_infop info_ptr = png_create_info_struct(png_ptr);
+    if (!info_ptr) {
+        png_destroy_read_struct(&png_ptr, nullptr, nullptr);
+        return 0;
+    }
+
     if (setjmp(png_jmpbuf(png_ptr))) {
         png_destroy_read_struct(&png_ptr, &info_ptr, nullptr);
         return 0;
@@ -507,9 +516,13 @@ int opencv_copy_to_region_with_alpha(opencv_mat src,
             cv::Mat srcChannelF, dstChannelF;
             srcChannels[i].convertTo(srcChannelF, CV_32F, 1.0 / 255.0);
             dstChannels[i].convertTo(dstChannelF, CV_32F, 1.0 / 255.0);
-            cv::Mat blended =
-              (srcChannelF.mul(srcAlphaF) + dstChannelF.mul(dstAlphaF).mul(1.0f - srcAlphaF)) /
-              outAlphaF;
+            cv::Mat numerator = srcChannelF.mul(srcAlphaF) + dstChannelF.mul(dstAlphaF).mul(1.0f - srcAlphaF);
+            cv::Mat blended;
+            // Use cv::divide to handle division by zero safely
+            // Where outAlphaF is zero, the result will be zero (fully transparent black)
+            cv::divide(numerator, outAlphaF, blended, 1.0, -1);
+            // Set pixels where outAlphaF is zero to zero explicitly
+            blended.setTo(0.0f, outAlphaF == 0.0f);
             blended.convertTo(dstChannels[i], CV_8U, 255.0);
         }
         outAlphaF.convertTo(dstChannels[3], CV_8U, 255.0);

@@ -325,6 +325,28 @@ bool webp_decoder_decode(const webp_decoder d, opencv_mat mat)
     // Recalculate row size based on the new dimensions
     int row_size = cvMat->cols * cvMat->elemSize();
 
+    // Calculate required buffer size for this frame
+    size_t required_buffer_size = features.width * features.height * 4; // 4 channels for RGBA/BGRA
+
+    // Validate frame dimensions don't exceed canvas dimensions (reject malformed files)
+    if (features.width > d->width || features.height > d->height) {
+        WebPDataClear(&frame.bitstream);
+        return false;
+    }
+
+    // Validate required buffer size doesn't exceed pre-allocated buffer
+    if (required_buffer_size > d->decode_buffer_size) {
+        WebPDataClear(&frame.bitstream);
+        return false;
+    }
+
+    // Validate row_size is consistent with buffer expectations
+    size_t expected_total_size = cvMat->total() * cvMat->elemSize();
+    if (expected_total_size > d->decode_buffer_size) {
+        WebPDataClear(&frame.bitstream);
+        return false;
+    }
+
     // Store frame properties for future use
     d->prev_frame_delay_time = frame.duration;
     d->prev_frame_x_offset = frame.x_offset;

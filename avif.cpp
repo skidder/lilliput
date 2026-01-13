@@ -126,16 +126,39 @@ static void avif_tonemap_rgb(uint16_t* src,
                              avifTransferCharacteristics transfer,
                              avifColorPrimaries primaries)
 {
+    // Validate image dimensions to prevent integer overflow
+    // Check that width * height * 3 doesn't overflow size_t
+    if (width <= 0 || height <= 0) {
+        fprintf(stderr, "Invalid image dimensions: width=%d, height=%d\n", width, height);
+        return;
+    }
+
+    // Use size_t for intermediate calculations to detect overflow
+    const size_t pixels = static_cast<size_t>(width) * static_cast<size_t>(height);
+    const size_t buffer_size = pixels * 3;
+
+    // Check for multiplication overflow
+    if (pixels / static_cast<size_t>(width) != static_cast<size_t>(height)) {
+        fprintf(stderr, "Integer overflow: image dimensions too large (width=%d, height=%d)\n", width, height);
+        return;
+    }
+
+    // Check if buffer size calculation overflowed
+    if (buffer_size / 3 != pixels) {
+        fprintf(stderr, "Integer overflow: buffer size too large for image\n");
+        return;
+    }
+
     float scale = 1.0f / ((1 << src_depth) - 1);
 
     // Create OpenCV matrices for processing
     cv::Mat hdrMat(height, width, CV_32FC3);
     cv::Mat sdrMat(height, width, CV_8UC3);
 
-    // Convert to linear RGB
+    // Convert to linear RGB - use size_t for index to prevent overflow
     for (int y = 0; y < height; y++) {
         for (int x = 0; x < width; x++) {
-            int idx = (y * width + x) * 3;
+            size_t idx = (static_cast<size_t>(y) * static_cast<size_t>(width) + static_cast<size_t>(x)) * 3;
             float r = src[idx] * scale;
             float g = src[idx + 1] * scale;
             float b = src[idx + 2] * scale;
@@ -195,7 +218,8 @@ static void avif_tonemap_rgb(uint16_t* src,
     }
     gamma_corrected.convertTo(sdrMat, CV_8UC3, 255.0f);
 
-    memcpy(dst, sdrMat.data, width * height * 3);
+    // Use the validated buffer_size to prevent overflow in memcpy
+    memcpy(dst, sdrMat.data, buffer_size);
 }
 
 // Convert YUV to RGB with optional HDR tone-mapping
@@ -537,6 +561,12 @@ bool avif_decoder_decode(avif_decoder d, opencv_mat mat)
         return false;
     }
 
+    // Verify that RGB pixels are valid before using them
+    if (!d->rgb.pixels) {
+        fprintf(stderr, "Invalid RGB pixel buffer (NULL). Decoder is in inconsistent state.\n");
+        return false;
+    }
+
     // Convert YUV to RGB with optional HDR handling
     avifResult result = avif_convert_yuv_to_rgb_with_tone_mapping(
       d->decoder->image, &d->rgb, d->tone_mapping_enabled);
@@ -572,14 +602,17 @@ bool avif_decoder_decode(avif_decoder d, opencv_mat mat)
 
     // Advance to next frame if there are more frames
     if (d->current_frame < d->frame_count - 1) {
-        // Free current RGB pixels before moving to next frame
-        avifRGBImageFreePixels(&d->rgb);
-
+        // Advance decoder state first, before freeing current pixels
         result = avifDecoderNextImage(d->decoder);
         if (result != AVIF_RESULT_OK) {
             fprintf(stderr, "Failed to advance to next frame: %s\n", avifResultToString(result));
+            // Decoder state is inconsistent, but current pixels are still valid
+            // Keep current frame index unchanged so decoder state matches pixel state
             return false;
         }
+
+        // Now free current RGB pixels after successful advance
+        avifRGBImageFreePixels(&d->rgb);
 
         // Reinitialize RGB image for the new frame
         avifRGBImageSetDefaults(&d->rgb, d->decoder->image);
@@ -591,8 +624,12 @@ bool avif_decoder_decode(avif_decoder d, opencv_mat mat)
         if (result != AVIF_RESULT_OK) {
             fprintf(stderr,
                     "Failed to allocate RGB pixels for frame %d: %s\n",
-                    d->current_frame,
+                    d->current_frame + 1,
                     avifResultToString(result));
+            // Ensure pixels pointer is NULL to prevent use-after-free
+            d->rgb.pixels = nullptr;
+            // DO NOT increment current_frame - decoder is now in inconsistent state
+            // and subsequent decode attempts will be caught by the NULL check above
             return false;
         }
     }

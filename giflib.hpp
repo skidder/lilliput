@@ -39,7 +39,7 @@ int giflib_decoder_get_frame_height(const giflib_decoder d);
 int giflib_decoder_get_prev_frame_delay(const giflib_decoder d);
 void giflib_decoder_release(giflib_decoder d);
 giflib_decoder_frame_state giflib_decoder_decode_frame_header(giflib_decoder d);
-bool giflib_decoder_decode_frame(giflib_decoder d, opencv_mat mat);
+bool giflib_decoder_decode_frame(giflib_decoder d, opencv_mat mat, int max_dimension);
 giflib_decoder_frame_state giflib_decoder_skip_frame(giflib_decoder d);
 
 giflib_encoder giflib_encoder_create(void* buf, size_t buf_len);

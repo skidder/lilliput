@@ -46,8 +46,9 @@ var (
 
 // SetGIFMaxFrameDimension sets the largest GIF width/height that can be decoded.
 // This helps prevent loading extremely large GIF images that could exhaust memory.
+// Safe to call concurrently with decoding operations. The limit is enforced atomically
+// during frame decode to prevent TOCTOU race conditions.
 func SetGIFMaxFrameDimension(dim uint64) {
-	// TODO we should investigate if this can be removed/become a mat check in decoder
 	atomic.StoreUint64(&gifMaxFrameDimension, dim)
 }
 
@@ -196,16 +197,11 @@ func (d *gifDecoder) DecodeTo(f *Framebuffer) error {
 		return ErrInvalidImage
 	}
 
-	frameHeader, err := d.FrameHeader()
-	if err != nil {
-		return ErrInvalidImage
-	}
-	maxDim := int(atomic.LoadUint64(&gifMaxFrameDimension))
-	if frameHeader.Width() > maxDim || frameHeader.Height() > maxDim {
-		return ErrInvalidImage
-	}
-
-	ret := C.giflib_decoder_decode_frame(d.decoder, f.mat)
+	// Load the max dimension once and pass it to C code for atomic check during decode
+	// This eliminates the TOCTOU race condition where the limit could change between
+	// check and decode operations
+	maxDim := C.int(atomic.LoadUint64(&gifMaxFrameDimension))
+	ret := C.giflib_decoder_decode_frame(d.decoder, f.mat, maxDim)
 	if !ret {
 		return ErrDecodingFailed
 	}
